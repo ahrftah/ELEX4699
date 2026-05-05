@@ -1,10 +1,15 @@
+# ELEX4699.py
+# Authors: Bardia Jalali and Aiden Higginson
+# This program allows the user to control a forklift robot using the arrow keys and W/S keys for the fork. 
+# It sends commands to a Raspberry Pi over UDP to control the robot's movements.
+
 import keyboard
 import socket
 import time
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-PI_IP = 'bardiopi'
-PI_PORT = 5001
+PI_IP = 'higginson'
+PI_PORT = 4002
 
 print("Arrow keys = drive | W = fork up | S = fork down | ESC = quit")
 

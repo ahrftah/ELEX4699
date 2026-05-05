@@ -10,6 +10,8 @@ def motor_server():
     AIN1, AIN2, PWMA = 2, 3, 12
     BIN1, BIN2, PWMB = 17, 27, 13
     SERVO_PIN = 19
+    PORT_1 = 4002
+    PORT_2 = 5002
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)
@@ -55,7 +57,7 @@ def motor_server():
     }
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('0.0.0.0', 5001))
+    sock.bind(('0.0.0.0', PORT_1))
     sock.setblocking(False)
 
     last_received = time.time()
@@ -105,7 +107,7 @@ def camera_server():
         return Response(generate_frames(),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=PORT_1)
 
 # Run both
 if __name__ == '__main__':

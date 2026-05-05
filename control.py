@@ -3,6 +3,9 @@ import cv2
 import RPi.GPIO as GPIO
 from multiprocessing import Process
 
+PORT_1 = 4002
+PORT_2 = 5002
+
 def motor_server():
     import socket
     import time
@@ -10,8 +13,7 @@ def motor_server():
     AIN1, AIN2, PWMA = 2, 3, 12
     BIN1, BIN2, PWMB = 17, 27, 13
     SERVO_PIN = 19
-    PORT_1 = 4002
-    PORT_2 = 5002
+    
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)

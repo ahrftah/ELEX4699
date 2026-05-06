@@ -8,7 +8,9 @@ import socket
 import time
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-PI_IP = 'higginson'
+
+print("Please enter PI_IP.")
+PI_IP = input().strip()
 PI_PORT = 4002
 
 print("Arrow keys = drive | W = fork up | S = fork down | ESC = quit")

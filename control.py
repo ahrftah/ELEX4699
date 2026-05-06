@@ -15,9 +15,9 @@ def motor_server():
 
     AIN1, AIN2, PWMA = 4, 17, 18 # pins 7, 11, 12
     BIN1, BIN2, PWMB = 22, 27, 23 # pins 15, 13, 16
-    SERVO_PIN = 19
+    SERVO_PIN = 24 # pin 18
 
-    GPIO.setmode(GPIO.BCM)
+    GPIO.setmode(GPIO.BCM) 
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)
     GPIO.setup([PWMA, PWMB], GPIO.OUT)
     GPIO.setup(SERVO_PIN, GPIO.OUT)

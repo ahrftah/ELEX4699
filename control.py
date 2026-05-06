@@ -1,3 +1,6 @@
+# Jalali I lov you
+
+
 from flask import Flask, Response
 import cv2
 import RPi.GPIO as GPIO
@@ -13,7 +16,6 @@ def motor_server():
     AIN1, AIN2, PWMA = 2, 3, 12
     BIN1, BIN2, PWMB = 17, 27, 13
     SERVO_PIN = 19
-    
 
     GPIO.setmode(GPIO.BCM)
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)

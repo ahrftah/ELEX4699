@@ -13,8 +13,8 @@ def motor_server():
     import socket
     import time
 
-    AIN1, AIN2, PWMA = 2, 3, 12
-    BIN1, BIN2, PWMB = 17, 27, 13
+    AIN1, AIN2, PWMA = 4, 17, 18 # pins 7, 11, 12
+    BIN1, BIN2, PWMB = 22, 27, 23 # pins 15, 13, 16
     SERVO_PIN = 19
 
     GPIO.setmode(GPIO.BCM)

@@ -1,3 +1,5 @@
+# Jalali I lov you
+
 from flask import Flask, Response
 import cv2
 import RPi.GPIO as GPIO
@@ -10,16 +12,23 @@ def motor_server():
     import socket
     import time
 
-    AIN1, AIN2, PWMA = 2, 3, 12
-    BIN1, BIN2, PWMB = 17, 27, 13
-    SERVO_PIN = 19
-    
+    # ArUco setup
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    aruco_params = cv2.aruco.DetectorParameters()
+    detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
 
-    GPIO.setmode(GPIO.BCM)
+    # Motor pins
+    AIN1, AIN2, PWMA = 4, 17, 18 # pins 7, 11, 12
+    BIN1, BIN2, PWMB = 22, 27, 23 # pins 15, 13, 16
+    SERVO_PIN = 24 # pin 18
+
+    # GPIO setup
+    GPIO.setmode(GPIO.BCM) 
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)
     GPIO.setup([PWMA, PWMB], GPIO.OUT)
     GPIO.setup(SERVO_PIN, GPIO.OUT)
 
+    # PWM setup
     pwm_a = GPIO.PWM(PWMA, 1000)
     pwm_b = GPIO.PWM(PWMB, 1000)
     pwm_a.start(0)
@@ -27,6 +36,64 @@ def motor_server():
 
     servo = GPIO.PWM(SERVO_PIN, 50)
     servo.start(0)
+
+    
+
+
+    def communicate_with_warehouse():
+        # IP and port of warehouse PC streaming server
+        WAREHOUSE_IP = '192.168.0.100'
+        WAREHOUSE_PORT = 5002
+
+        # Connect to streaming server
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((WAREHOUSE_IP, WAREHOUSE_PORT))
+
+        # Buffer to hold incoming data
+        buffer = b''
+
+        sock.sendall(b'G 1')
+     
+        data = sock.recv(65535)
+        if not data:
+            print("Connection closed")
+            break
+
+        # Append received data to buffer
+        buffer += data
+    
+        # Look for JPEG start and end markers
+        start = buffer.find(b'\xff\xd8')
+        end = buffer.find(b'\xff\xd9')
+
+        # If we have a complete JPEG image, process it
+        if start != -1 and end != -1:
+            jpg = buffer[start:end+2]
+            buffer = buffer[end+2:]
+
+        # Decode JPEG to OpenCV image
+        frame = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if frame is not None:
+            # Detect ArUco markers
+            corners, ids, _ = detector.detectMarkers(frame)
+
+            # If markers detected, calculate and print car position
+            if ids is not None:
+                cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+
+                # Assuming the car is represented by the first detected marker
+                for i, corner in enumerate(corners):
+                    cx = int(corner[0][:, 0].mean())
+                    cy = int(corner[0][:, 1].mean())
+                    print(f"Car position: ({cx}, {cy})")
+
+                    # Draw position on frame
+                    cv2.circle(frame, (cx, cy), 5, (0, 255, 0), -1)
+                    cv2.putText(frame, f"({cx},{cy})", (cx+10, cy),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            else:
+                print("Car not detected")
+
 
     def set_motors(ain1, ain2, bin1, bin2, speed=100):
         GPIO.output(AIN1, ain1)
@@ -58,13 +125,20 @@ def motor_server():
         'fork_down': fork_down,
     }
 
+    # UDP server setup
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('0.0.0.0', PORT_1))
     sock.setblocking(False)
 
+    # Main loop
     last_received = time.time()
     TIMEOUT = 0.5
 
+    directives = ['wait']
+
+    current_directive = 'wait'
+
+    # Initialize camera server in separate process
     try:
         while True:
             latest = None

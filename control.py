@@ -1,23 +1,29 @@
-# Jalali I lov you
-
+# control.py
+# Authors: Bardia Jalali and Aiden Higginson
+# Runs on Raspberry Pi. Starts motor server and onboard camera server.
 
 from flask import Flask, Response
 import cv2
 import RPi.GPIO as GPIO
 from multiprocessing import Process
+import socket
+import threading
+import time
 
-PORT_1 = 4002
-PORT_2 = 5002
+MOTOR_PORT  = 4002
+CAMERA_PORT = 5000
 
+# Replace with your PC's IP address (run ipconfig on Windows to find it)
+PC_IP          = '192.168.0.xxx'
+PC_DETECT_PORT = 4003
+
+# ---- Motor server ----
 def motor_server():
-    import socket
-    import time
+    AIN1, AIN2, PWMA = 4, 17, 18
+    BIN1, BIN2, PWMB = 22, 27, 23
+    SERVO_PIN = 24
 
-    AIN1, AIN2, PWMA = 4, 17, 18 # pins 7, 11, 12
-    BIN1, BIN2, PWMB = 22, 27, 23 # pins 15, 13, 16
-    SERVO_PIN = 24 # pin 18
-
-    GPIO.setmode(GPIO.BCM) 
+    GPIO.setmode(GPIO.BCM)
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)
     GPIO.setup([PWMA, PWMB], GPIO.OUT)
     GPIO.setup(SERVO_PIN, GPIO.OUT)
@@ -44,29 +50,24 @@ def motor_server():
         time.sleep(0.5)
         servo.ChangeDutyCycle(0)
 
-    def fork_down():
-        set_angle(20)    # adjust this angle to match your forklift
-
-    def fork_up():
-        set_angle(0)   # adjust this angle to match your forklift
-
     commands = {
         'forward':   lambda: set_motors(1, 0, 1, 0, 60),
         'backward':  lambda: set_motors(0, 1, 0, 1, 60),
         'left':      lambda: set_motors(0, 1, 1, 0, 30),
         'right':     lambda: set_motors(1, 0, 0, 1, 30),
         'stop':      lambda: set_motors(0, 0, 0, 0, 0),
-        'fork_up':   fork_up,
-        'fork_down': fork_down,
+        'fork_up':   lambda: set_angle(0),
+        'fork_down': lambda: set_angle(20),
     }
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('0.0.0.0', PORT_1))
+    sock.bind(('0.0.0.0', MOTOR_PORT))
     sock.setblocking(False)
 
     last_received = time.time()
     TIMEOUT = 0.5
 
+    print("Motor server running...")
     try:
         while True:
             latest = None
@@ -90,18 +91,53 @@ def motor_server():
         servo.stop()
         GPIO.cleanup()
 
-# Camera server
+# ---- Camera + detection server ----
 def camera_server():
-    app = Flask(__name__)
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+    aruco_params = cv2.aruco.DetectorParameters()
+    aruco_params.adaptiveThreshWinSizeMin = 3
+    aruco_params.adaptiveThreshWinSizeMax = 23
+    aruco_params.adaptiveThreshConstant = 7
+    aruco_params.minMarkerPerimeterRate = 0.01
+    detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
+
+    detect_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
     camera = cv2.VideoCapture(0)
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    def generate_frames():
+    latest_frame = None
+    frame_lock = threading.Lock()
+
+    def capture_loop():
+        nonlocal latest_frame
         while True:
             success, frame = camera.read()
             if not success:
-                break
+                continue
+
+            corners, ids, _ = detector.detectMarkers(frame)
+            if ids is not None:
+                for id in ids:
+                    if id[0] in [38, 62]:
+                        msg = f"PACKAGE_{id[0]}"
+                        detect_sock.sendto(msg.encode(), (PC_IP, PC_DETECT_PORT))
+                        print(f"Sent detection: {msg}")
+
+            with frame_lock:
+                latest_frame = frame.copy()
+
+    threading.Thread(target=capture_loop, daemon=True).start()
+
+    app = Flask(__name__)
+
+    def generate_frames():
+        while True:
+            with frame_lock:
+                frame = latest_frame
+            if frame is None:
+                continue
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 50])
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
@@ -111,9 +147,10 @@ def camera_server():
         return Response(generate_frames(),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
-    app.run(host='0.0.0.0', port=PORT_1)
+    print("Camera server running...")
+    app.run(host='0.0.0.0', port=CAMERA_PORT)
 
-# Run both
+# ---- Run both ----
 if __name__ == '__main__':
     p1 = Process(target=camera_server)
     p2 = Process(target=motor_server)

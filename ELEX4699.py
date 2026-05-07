@@ -6,6 +6,7 @@
 import keyboard
 import socket
 import time
+import importsocket.py
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 

@@ -5,15 +5,19 @@
 from flask import Flask, Response
 import cv2
 import RPi.GPIO as GPIO
-from multiprocessing import Process
 import socket
 import threading
 import numpy as np
 import math
 import time
+from skimage.graph import route_through_array
+
+# local imports
+import pathfind
+import movement
 
 MOTOR_PORT  = 4002
-CAMERA_PORT = 5000
+# CAMERA_PORT = 5000
 
 OVERHEAD_IP   = '192.168.0.100'  # replace with overhead camera IP
 OVERHEAD_PORT = 5002              # replace with overhead camera port
@@ -21,10 +25,10 @@ OVERHEAD_PORT = 5002              # replace with overhead camera port
 PICKUP_POINT  = (180, 180)
 DELIVERY_ZONE = (190, 584)
 
-def motor_server():
-    import socket
-    import time
+directive = 'idle'  # global variable to store current directive (e.g., 'idle', 'start', 'pickup')
 
+#--- Motor and navigation server ----
+def motor_server():
     # ---- ArUco for car tracking ----
     car_aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     car_detector   = cv2.aruco.ArucoDetector(car_aruco_dict, cv2.aruco.DetectorParameters())
@@ -42,17 +46,16 @@ def motor_server():
     AIN1, AIN2, PWMA = 4, 17, 18
     BIN1, BIN2, PWMB = 22, 27, 23
     SERVO_PIN = 24
-
     GPIO.setmode(GPIO.BCM)
     GPIO.setup([AIN1, AIN2, BIN1, BIN2], GPIO.OUT)
     GPIO.setup([PWMA, PWMB], GPIO.OUT)
     GPIO.setup(SERVO_PIN, GPIO.OUT)
 
+    # Initialize PWM for motors and servo
     pwm_a = GPIO.PWM(PWMA, 1000)
     pwm_b = GPIO.PWM(PWMB, 1000)
     pwm_a.start(0)
     pwm_b.start(0)
-
     servo = GPIO.PWM(SERVO_PIN, 50)
     servo.start(0)
 
@@ -79,12 +82,23 @@ def motor_server():
     def fork_up():   set_angle(0)
     def fork_down(): set_angle(20)
 
-    # ---- Overhead camera ----
-    def connect_overhead():
+    # ----------------------------------------------
+    # Function name: connect_overhead
+    # Description: Establishes a TCP connection to the overhead camera server.
+    # Input:  None
+    # Output: A connected TCP socket to the overhead camera server.
+    # ----------------------------------------------
+    def connect_socket(ip, port):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((OVERHEAD_IP, OVERHEAD_PORT))
+        s.connect((ip, port))
         return s
 
+    # ----------------------------------------------
+    # Function name: get_overhead_frame
+    # Description: Requests and receives a JPEG frame from the overhead camera server.
+    # Input: A connected TCP socket to the overhead camera server.
+    # Output: A decoded OpenCV image (BGR format) or None if decoding fails.
+    # ----------------------------------------------
     def get_overhead_frame(s):
         s.sendall(b'G 1')
         buf = b''
@@ -95,10 +109,17 @@ def motor_server():
         start = buf.find(b'\xff\xd8')
         end   = buf.find(b'\xff\xd9')
         if start != -1 and end != -1:
+            print("Received overhead frame")
             jpg = buf[start:end+2]
             return cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
         return None
 
+    # ----------------------------------------------
+    # Function name: get_car_pose
+    # Description: Detects the car's position and heading from an overhead frame using ArUco markers.
+    # Input: A decoded OpenCV image (BGR format) from the overhead camera.
+    # Output: A tuple containing the car's position (x, y) and heading (radians), or (None, None) if not detected.
+    # ----------------------------------------------
     def get_car_pose(frame):
         corners, ids, _ = car_detector.detectMarkers(frame)
         if ids is not None and len(corners) > 0:
@@ -111,49 +132,24 @@ def motor_server():
             return (cx, cy), heading
         return None, None
 
-    def navigate_to(overhead_sock, target, threshold=35):
-        print(f"Navigating to {target}...")
-        last_cmd = None
-        while True:
-            frame = get_overhead_frame(overhead_sock)
-            if frame is None:
-                continue
+    
 
-            car_pos, heading = get_car_pose(frame)
-            if car_pos is None:
-                print("Car not visible...")
-                stop()
-                time.sleep(0.1)
-                continue
 
-            cx, cy = car_pos
-            tx, ty = target
-            dist = math.sqrt((tx - cx)**2 + (ty - cy)**2)
+    # ----------------------------------------------
+    # Function name: navigate_to
+    # Description: Navigates the car to a target point using feedback from the overhead camera. Continuously adjusts motor commands based on the car's position and heading until it reaches the target within a specified threshold.
+    # Input: - overhead_sock: A connected TCP socket to the overhead camera server.
+    #        - target: A tuple (x, y) representing the target coordinates in the overhead camera's frame.
+    #        - threshold: A distance threshold (in pixels) for considering the target reached.
+    # Output: None. The function will block until the car reaches the target point, at which point it will stop the motors and return.
+    # ----------------------------------------------
 
-            if dist < threshold:
-                stop()
-                print(f"Reached {target}!")
-                return
-
-            target_angle = math.atan2(ty - cy, tx - cx)
-            angle_diff   = target_angle - heading
-            while angle_diff >  math.pi: angle_diff -= 2 * math.pi
-            while angle_diff < -math.pi: angle_diff += 2 * math.pi
-
-            if abs(angle_diff) > 0.35:
-                cmd = 'right' if angle_diff > 0 else 'left'
-            else:
-                cmd = 'forward'
-
-            if cmd != last_cmd:
-                if   cmd == 'forward': forward()
-                elif cmd == 'right':   right()
-                elif cmd == 'left':    left()
-                last_cmd = cmd
-
-            time.sleep(0.05)
-
-    # ---- Onboard camera package scan ----
+    # ----------------------------------------------
+    # Function name: scan_for_package
+    # Description: Uses the onboard camera to scan for packages by detecting specific ArUco markers. Continuously captures frames from the camera and processes them to find markers corresponding to packages until a package is detected or a timeout occurs.
+    # Input: - timeout: The maximum time (in seconds) to spend scanning for a package before giving up.
+    # Output: The ID of the detected package (e.g., 38 or 62) if found within the timeout period, or None if no package is detected.
+    # ----------------------------------------------
     def scan_for_package(timeout=20):
         print("Scanning for package...")
         cam = cv2.VideoCapture(0)
@@ -178,65 +174,47 @@ def motor_server():
         cam.release()
         return found
 
+    def get_binary_map(h, w):
+
+
     # ---- Autonomous sequence ----
     def run_autonomous():
         print("=== Autonomous sequence started ===")
-        overhead_sock = connect_overhead()
+        overhead_sock = connect_socket(OVERHEAD_IP, OVERHEAD_PORT)
 
-        # 1. Navigate to pickup point
-        navigate_to(overhead_sock, PICKUP_POINT)
-        time.sleep(0.5)
+        if directive is 'pickup':
+            print("Directive: Pickup")
+            overhead_frame = get_overhead_frame(overhead_sock) # Get initial frame to calculate path
+    
+            # Get car pose from overhead
+            car_pos, heading = get_car_pose(overhead_frame)
 
-        # 2. Scan for package with onboard camera
-        pkg = scan_for_package()
-        if pkg is None:
-            print("No package found. Stopping.")
-            stop()
-            return
+            # Calculate path to pickup point
+            waypoints = pathfind.pathfind(get_binary_map(600, 600), car_pos, PICKUP_POINT)
 
-        # 3. Pick up package
-        print("Picking up package...")
-        fork_down()
-        time.sleep(0.5)
-        forward()
-        time.sleep(0.8)
-        stop()
-        time.sleep(0.3)
-        fork_up()
-        time.sleep(0.5)
+            # Follow waypoints to pickup point
+            command = None
+            while len(waypoints) > 0:
+                while command is not 'stop':
+                    # Get updated frame and car pose
+                    overhead_frame = get_overhead_frame(overhead_sock)
+                    car_pos, heading = get_car_pose(overhead_frame)
 
-        # 4. Reverse away from wall
-        print("Reversing...")
-        backward()
-        time.sleep(1.0)
-        stop()
-        time.sleep(0.3)
+                    # Calculate motor command based on current pose and next waypoint
+                    command = movement.movement(car_pos, waypoints[0], heading)
 
-        # 5. Turn around 180
-        print("Turning around...")
-        right()
-        time.sleep(2.0)  # tune for full 180 turn
-        stop()
-        time.sleep(0.3)
-
-        # 6. Navigate to delivery zone
-        navigate_to(overhead_sock, DELIVERY_ZONE)
-        time.sleep(0.5)
-
-        # 7. Deliver package
-        print("Delivering package...")
-        forward()
-        time.sleep(0.6)
-        stop()
-        time.sleep(0.3)
-        fork_down()
-        time.sleep(0.5)
-        backward()
-        time.sleep(1.0)
-        stop()
-
-        overhead_sock.close()
-        print("=== Delivery complete! ===")
+                    # Send command to motors
+                    if command is 'forward':
+                        forward()
+                    elif command is 'rotate_left':
+                        left()
+                    elif command is 'rotate_right':
+                        right()
+                    else:
+                        stop() # aligned, check if we reached the waypoint
+                    time.sleep(0.1)
+                waypoints.pop(0) # Move to next waypoint
+            stop() # Ensure we stop at the pickup point
 
     # ---- UDP listener for start command ----
     cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -245,12 +223,14 @@ def motor_server():
 
     print("Waiting for start command...")
 
+    # Communicate with client
     try:
         while True:
             try:
                 data, _ = cmd_sock.recvfrom(1024)
                 msg = data.decode().strip()
-                if msg == 'start':
+                if msg == 'start' and directive == 'idle':
+                    directive = 'pickup'
                     run_autonomous()
                 elif msg == 'stop':
                     stop()
@@ -287,10 +267,6 @@ def camera_server():
 
     app.run(host='0.0.0.0', port=CAMERA_PORT)
 
+# Multithread the camera and motor server
 if __name__ == '__main__':
-    p1 = Process(target=camera_server)
-    p2 = Process(target=motor_server)
-    p1.start()
-    p2.start()
-    p1.join()
-    p2.join()
+    motor_server()

@@ -14,12 +14,15 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 print("G = start autonomous | ESC = quit")
 
+start_sent = False
+
 while True:
     if keyboard.is_pressed('esc'):
         sock.sendto(b'stop', (PI_IP, PI_PORT))
         break
-    elif keyboard.is_pressed('g'):
+    elif keyboard.is_pressed('g') and start_sent is False:
         sock.sendto(b'start', (PI_IP, PI_PORT))
         print("Start command sent!")
+        start_sent = True
 
     time.sleep(0.02)

@@ -1,6 +1,8 @@
 import math
 
 def rotate_to(target_angle, current_heading):
+    print("Rotate ", target_angle, " ", current_heading)
+
     DEADBAND = 0.1 # radians, about 5.7 degrees
 
     # Calculate smallest angle difference
@@ -15,22 +17,30 @@ def rotate_to(target_angle, current_heading):
 
     # Determine rotation direction
     if abs(angle_diff) < DEADBAND:
+        print("aligned")
         return 'aligned'
     
     # Standard math: positive angle_diff means clockwise (right turn), negative means counterclockwise (left turn)
     if angle_diff > 0:
+        print("Rotate right " target_angle, " ", current_heading)
         return 'right'
     else:
+        print("Rotate left  " target_angle, " ", current_heading)
         return 'left'
 
 def movement(current_pos, target_pos, current_heading):
+    if current_pos is None or target_pos is None or current_heading is None:
+        print(f"Warning: None passed to movement")
+        return 'none'
+    
+    print("Moving from", current_pos, " ", target_pos))
     cx, cy = current_pos
     tx, ty = target_pos
     
     THRESHOLD = 10 # pixels
     
     # 1. Determine where we need to face
-    target_angle = math.atan2(ty - cy, tx - cx)
+    target_angle = math.atan2(ty - cy, tx - cx) # Adjust for     car's forward direction being along negative Y-axis
     
     # 2. Check if we need to rotate first
     rotation = rotate_to(target_angle, current_heading)

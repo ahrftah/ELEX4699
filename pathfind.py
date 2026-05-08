@@ -6,7 +6,6 @@ def pathfind(binary_map, start, goal):
         startx, starty = start
         goalx, goaly = goal
         
-        
         # 1. Setup Map
         h, w = binary_map.shape[:2]
         cost_map = np.ones((h, w), dtype=np.float32)
@@ -38,8 +37,14 @@ def pathfind(binary_map, start, goal):
             
             # 6. Always add the final goal
             waypoints.append((path[-1][1], path[-1][0]))
-            
-            return waypoints # Moved OUTSIDE the loop!
+
+            # Delete a waypoint if it is too close to the previous one (optional, can help reduce noise)
+            filtered_waypoints = []
+            for wp in waypoints:
+                if not filtered_waypoints or np.linalg.norm(np.array(wp) - np.array(filtered_waypoints[-1])) > 25: # 25 pixel threshold
+                    filtered_waypoints.append(wp)
+            filtered_waypoints.pop(0) # Remove the first waypoint because it's the same as the start (optional)
+            return filtered_waypoints # Moved OUTSIDE the loop!
         except Exception as e:
             print(f"Pathfinding failed: {e}")
             return None

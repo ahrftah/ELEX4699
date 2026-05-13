@@ -46,7 +46,7 @@ def motor_server():
  
     # ---- Motor helpers ----
     def set_motors(ain1, ain2, bin1, bin2, speed=100):
-        motor_adjustment = 0.9
+        motor_adjustment = 0.95
         GPIO.output(AIN1, ain1)
         GPIO.output(AIN2, ain2)
         GPIO.output(BIN1, bin1)

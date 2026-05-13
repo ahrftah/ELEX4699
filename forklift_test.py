@@ -82,7 +82,7 @@ def motor_server():
 
     # Rotate right for 1 seconds
     start_time = time.time()
-    while(end_time - start_time < 1):
+    while(end_time - start_time < 0.9):
         right()
         end_time = time.time()
 

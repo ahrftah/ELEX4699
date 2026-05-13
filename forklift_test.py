@@ -23,7 +23,7 @@ def motor_server():
     print('Initializing GPIO pins')
     start_time = time.time()
     AIN1, AIN2, PWMA = 4, 17, 18
-    BIN1, BIN2, PWMB = 22, 27, 23
+    BIN1, BIN2, PWMB = 22, 27, 12
     SERVO_PIN = 24
     end_time = time.time()
     print(f"GPIO initialization took {end_time - start_time:.2f} seconds")
@@ -69,28 +69,27 @@ def motor_server():
     def fork_down(): set_angle(20)
 
     # ---- Main loop ----
-    while True:
-        # Move forward for 0.5 seconds
-        start_time = time.time()
+    # Move forward for 0.5 seconds
+    start_time = time.time()
+    end_time = time.time()
+    while(end_time - start_time < 0.5):
+        forward()
         end_time = time.time()
-        while(end_time - start_time < 0.5):
-            forward()
-            end_time = time.time()
 
-        # Stop for 1 second
-        stop()
-        time.sleep(1)
+    # Stop for 1 second
+    stop()
+    time.sleep(1)
 
-        # Rotate right for 0.5 seconds
-        start_time = time.time()
-        while(end_time - start_time < 0.5):
-            right()
-            end_time = time.time()
-        
-        # Stop for 1 second
-        stop()
-        time.sleep(1)
+    # Rotate right for 0.5 seconds
+    start_time = time.time()
+    while(end_time - start_time < 0.5):
+        right()
+        end_time = time.time()
     
+    # Stop for 1 second
+    stop()
+    time.sleep(1)
+
     # Cleanup GPIO on exit
     pwm_a.stop()
     pwm_b.stop()

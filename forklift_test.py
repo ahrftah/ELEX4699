@@ -46,7 +46,7 @@ def motor_server():
  
     # ---- Motor helpers ----
     def set_motors(ain1, ain2, bin1, bin2, speed=100):
-        motor_adjustment = 0.95
+        motor_adjustment = 0.92 # Adjust this value to balance the motors
         GPIO.output(AIN1, ain1)
         GPIO.output(AIN2, ain2)
         GPIO.output(BIN1, bin1)
@@ -72,7 +72,7 @@ def motor_server():
     # Move forward for 0.5 seconds
     start_time = time.time()
     end_time = time.time()
-    while(end_time - start_time < 2):
+    while(end_time - start_time < 3):
         forward()
         end_time = time.time()
 

@@ -19,9 +19,6 @@ def motor_server():
     # ---- Time Variables For Measurement ----
     start_time = None
     end_time = None
- 
-    # ---- Initialize GPIO pins and PWM for motor control and servo ----
-    motors.setup_gpio()
 
     # ---- Main loop ----
     # Move forward for 0.5 seconds
@@ -45,8 +42,13 @@ def motor_server():
     motors.stop()
     time.sleep(1)
 
-    # Cleanup GPIO on exit
-    motors.cleanup_gpio()
+    start_time = time.time()
+    while(end_time - start_time < 3):
+        motors.left(0.7)
+        end_time = time.time()
+    
+    motors.stop()
+    time.sleep(1)
 
 if __name__ == "__main__":
     motor_server()

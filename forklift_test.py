@@ -72,7 +72,7 @@ def motor_server():
     # Move forward for 0.5 seconds
     start_time = time.time()
     end_time = time.time()
-    while(end_time - start_time < 0.5):
+    while(end_time - start_time < 2):
         forward()
         end_time = time.time()
 

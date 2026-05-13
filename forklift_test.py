@@ -80,12 +80,12 @@ def motor_server():
     stop()
     time.sleep(1)
 
-    # Rotate right for 0.5 seconds
+    # Rotate right for 1 seconds
     start_time = time.time()
-    while(end_time - start_time < 0.5):
+    while(end_time - start_time < 1):
         right()
         end_time = time.time()
-    
+
     # Stop for 1 second
     stop()
     time.sleep(1)

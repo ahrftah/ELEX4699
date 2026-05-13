@@ -52,7 +52,7 @@ def motor_server():
         GPIO.output(BIN1, bin1)
         GPIO.output(BIN2, bin2)
         pwm_a.ChangeDutyCycle(speed)
-        pwm_b.ChangeDutyCycle(speed)
+        pwm_b.ChangeDutyCycle(speed*motor_adjustment)
  
     def set_angle(angle):
         duty = 2.5 + (angle / 180) * 10

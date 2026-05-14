@@ -7,9 +7,14 @@ OVERHEAD_IP   = '192.168.0.100'
 OVERHEAD_PORT = 5002
 
 def connect_socket(ip, port):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((ip, port))
-    return s
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((ip, port))
+        return s
+    except Exception as e:
+        print(f"Error connecting to overhead camera: {e}")
+    return None
+    
 
 def get_overhead_frame(s):
     s.sendall(b'G 1')

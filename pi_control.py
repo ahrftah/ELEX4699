@@ -23,7 +23,7 @@ def main():
         command, addr = communication.receive_command(pc_sock)
         if command is not None:
             print(command)
-            communication.send_command(pc_sock, command, 'PC_IP', 4002)
+            communication.send_command(pc_sock, command, PC_IP, PC_PORT)
         else:
             print('None')
         

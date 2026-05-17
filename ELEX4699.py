@@ -23,6 +23,8 @@ def main():
         'down': 'backward',
         'left': 'left',
         'right': 'right',
+        'e': 'fork_up',
+        'q': 'fork_down',
         'm': 'manual',
         'a': 'automatic',
         's': 'start'

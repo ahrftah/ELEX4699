@@ -17,8 +17,8 @@ def main():
         'backward':motors.backward,
         'left':motors.left,
         'right':motors.right,
-        'servo_up':motors.fork_up,
-        'servo_down':motors.fork_down,
+        'fork_up':motors.fork_up,
+        'fork_down':motors.fork_down,
         'stop':motors.stop
     }
 

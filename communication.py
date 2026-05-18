@@ -106,6 +106,51 @@ def get_overhead_frame(sock, timeout=5.0):
     print("Error: Could not decode JPEG frame from overhead camera.")
     return None
 
+def send_frame_tcp(sock, frame, quality=50):
+    """
+    Compresses an OpenCV image to JPEG and transmits it over a TCP socket.
+    Lower quality (e.g., 50) reduces packet size for faster transmission over Wi-Fi.
+    """
+    try:
+        # Encode the frame into a memory buffer as a JPEG
+        result, encoded_img = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        if result:
+            sock.sendall(encoded_img.tobytes())
+            return True
+    except Exception as e:
+        print(f"Error transmitting frame over TCP: {e}")
+    return False
+
+
+def receive_frame_tcp(sock, timeout=2.0):
+    """
+    Listens to a TCP socket stream until a complete JPEG image frame is assembled,
+    then decodes and returns it as a standard OpenCV BGR image matrix.
+    """
+    buf = b''
+    sock.settimeout(timeout)
+    try:
+        while True:
+            chunk = sock.recv(65535)
+            if not chunk:
+                break
+            buf += chunk
+            if b'\xff\xd9' in buf:  # Found JPEG End of Image marker
+                break
+    except socket.timeout:
+        return None
+    except Exception as e:
+        print(f"Error receiving frame over TCP: {e}")
+        return None
+
+    start = buf.find(b'\xff\xd8')  # JPEG Start of Image marker
+    end   = buf.find(b'\xff\xd9')
+
+    if start != -1 and end != -1:
+        jpg = buf[start:end + 2]
+        return cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+    
+    return None
 
 # ---------------------------------------------------------------------------
 # Self-test
